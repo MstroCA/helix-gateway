@@ -2,10 +2,9 @@
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/MstroCA/helix-gateway?logo=go&label=Go)](go.mod)
 [![Build](https://github.com/MstroCA/helix-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/MstroCA/helix-gateway/actions/workflows/ci.yml)
-[![Coverage](https://codecov.io/gh/MstroCA/helix-gateway/branch/main/graph/badge.svg)](https://codecov.io/gh/MstroCA/helix-gateway)
 [![License](https://img.shields.io/github/license/MstroCA/helix-gateway)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/MstroCA/helix-gateway)](https://github.com/MstroCA/helix-gateway/releases)
-[![Docker Pulls](https://img.shields.io/docker/pulls/mstroca/helix-gateway)](https://github.com/MstroCA/helix-gateway/pkgs/container/helix-gateway)
+[![Container](https://img.shields.io/badge/ghcr.io-helix--gateway-blue?logo=docker)](https://github.com/MstroCA/helix-gateway/pkgs/container/helix-gateway)
 
 **Production-grade API gateway built in Go. Single binary. Zero dependencies.**
 

@@ -1,0 +1,36 @@
+# Binaries
+helix
+helixctl
+*.so
+*.exe
+
+# Build artifacts
+/dist/
+/bin/
+
+# Config & secrets
+.env
+*.key
+*.pem
+*.crt
+helix-config.json
+
+# TLS cache
+.autocert-cache/
+
+# Go
+vendor/
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

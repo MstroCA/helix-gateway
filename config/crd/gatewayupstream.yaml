@@ -1,0 +1,78 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: gatewayupstreams.helix.io
+spec:
+  group: helix.io
+  names:
+    kind: GatewayUpstream
+    listKind: GatewayUpstreamList
+    plural: gatewayupstreams
+    singular: gatewayupstream
+    shortNames:
+      - gupstream
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: URL
+          type: string
+          jsonPath: .spec.url
+        - name: Health
+          type: string
+          jsonPath: .status.health
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - url
+              properties:
+                url:
+                  type: string
+                  minLength: 1
+                healthPath:
+                  type: string
+                  default: /health
+            status:
+              type: object
+              properties:
+                upstreamId:
+                  type: string
+                health:
+                  type: string
+                  enum: [healthy, unhealthy, unknown]
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - type
+                      - status
+                      - reason
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum: ["True", "False", "Unknown"]
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      observedGeneration:
+                        type: integer
+                      lastTransitionTime:
+                        type: string
+                        format: date-time

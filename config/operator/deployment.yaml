@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helix-operator
+  namespace: helix-system
+  labels:
+    app: helix-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: helix-operator
+  template:
+    metadata:
+      labels:
+        app: helix-operator
+    spec:
+      serviceAccountName: helix-operator
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+      containers:
+        - name: operator
+          image: helix-operator:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --leader-elect=true
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+          env:
+            - name: HELIX_ADMIN_URL
+              value: http://helix-gateway.helix-system.svc.cluster.local:9090
+            - name: HELIX_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: helix-admin-credentials
+                  key: username
+            - name: HELIX_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: helix-admin-credentials
+                  key: password
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: health
+              containerPort: 8081
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true

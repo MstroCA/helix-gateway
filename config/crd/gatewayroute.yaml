@@ -1,0 +1,123 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: gatewayroutes.helix.io
+spec:
+  group: helix.io
+  names:
+    kind: GatewayRoute
+    listKind: GatewayRouteList
+    plural: gatewayroutes
+    singular: gatewayroute
+    shortNames:
+      - groute
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Path
+          type: string
+          jsonPath: .spec.match.path
+        - name: Mode
+          type: string
+          jsonPath: .spec.match.pathMode
+        - name: Upstream
+          type: string
+          jsonPath: .spec.upstreamRef
+        - name: Active
+          type: boolean
+          jsonPath: .spec.active
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - match
+                - upstreamRef
+              properties:
+                active:
+                  type: boolean
+                  default: true
+                stripPath:
+                  type: boolean
+                  default: false
+                upstreamRef:
+                  type: string
+                  minLength: 1
+                match:
+                  type: object
+                  required:
+                    - path
+                  properties:
+                    hosts:
+                      type: array
+                      items:
+                        type: string
+                    path:
+                      type: string
+                      minLength: 1
+                    pathMode:
+                      type: string
+                      enum: [prefix, exact, regex]
+                      default: prefix
+                    methods:
+                      type: array
+                      items:
+                        type: string
+                        enum: [GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS]
+                    headers:
+                      type: object
+                      additionalProperties:
+                        type: string
+                plugins:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - name
+                    properties:
+                      name:
+                        type: string
+                        minLength: 1
+                      config:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+            status:
+              type: object
+              properties:
+                routeId:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - type
+                      - status
+                      - reason
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum: ["True", "False", "Unknown"]
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      observedGeneration:
+                        type: integer
+                      lastTransitionTime:
+                        type: string
+                        format: date-time

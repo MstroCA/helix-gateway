@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-950 text-gray-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Helix Gateway</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { colors: { brand: '#6366f1' } } }
+    }
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .fade { transition: opacity .15s ease; }
+    ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: #111; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+  </style>
+</head>
+<body class="h-full" x-data="app()" x-init="init()" x-cloak>
+
+<!-- Layout -->
+<div class="flex h-full">
+
+  <!-- Sidebar -->
+  <aside class="w-56 shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col">
+    <div class="p-5 border-b border-gray-800">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center text-xs font-bold">H</div>
+        <span class="font-semibold tracking-tight">Helix Gateway</span>
+      </div>
+      <p class="text-xs text-gray-500 mt-1" x-text="info.version || ''"></p>
+    </div>
+    <nav class="flex-1 p-3 space-y-1">
+      <template x-for="tab in tabs" :key="tab.id">
+        <button @click="page = tab.id"
+          :class="page === tab.id ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-600/30' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-100 border border-transparent'"
+          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all">
+          <span x-text="tab.icon" class="text-base"></span>
+          <span x-text="tab.label"></span>
+          <span x-show="tab.id === 'routes' && routes.length" class="ml-auto text-xs bg-gray-700 px-1.5 rounded-full" x-text="routes.length"></span>
+          <span x-show="tab.id === 'upstreams' && upstreams.length" class="ml-auto text-xs bg-gray-700 px-1.5 rounded-full" x-text="upstreams.length"></span>
+          <span x-show="tab.id === 'policies' && policies.length" class="ml-auto text-xs bg-gray-700 px-1.5 rounded-full" x-text="policies.length"></span>
+        </button>
+      </template>
+    </nav>
+    <div class="p-3 border-t border-gray-800 text-xs text-gray-600" x-text="'uptime: ' + info.uptime"></div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 overflow-auto">
+
+    <!-- Header -->
+    <div class="sticky top-0 z-10 bg-gray-950/90 backdrop-blur border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+      <h1 class="text-sm font-semibold text-gray-300" x-text="tabs.find(t=>t.id===page)?.label"></h1>
+      <div class="flex items-center gap-2">
+        <span x-show="toast.msg" x-transition class="text-xs px-3 py-1 rounded-full"
+          :class="toast.ok ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'"
+          x-text="toast.msg"></span>
+        <button @click="loadAll()" class="text-xs text-gray-500 hover:text-gray-300 px-2 py-1 rounded hover:bg-gray-800">↻ Refresh</button>
+      </div>
+    </div>
+
+    <!-- ── Routes ── -->
+    <div x-show="page === 'routes'" class="p-6">
+      <div class="flex justify-between items-center mb-4">
+        <p class="text-sm text-gray-400">Manage proxy routing rules</p>
+        <button @click="openRouteModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-3 py-1.5 rounded-lg transition">+ New Route</button>
+      </div>
+      <div class="space-y-2">
+        <template x-if="routes.length === 0">
+          <p class="text-center text-gray-600 py-12 text-sm">No routes yet. Create one to start routing traffic.</p>
+        </template>
+        <template x-for="r in routes" :key="r.id">
+          <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 hover:border-gray-700 transition">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-sm" x-text="r.name"></span>
+                <span class="text-xs px-1.5 py-0.5 rounded font-mono"
+                  :class="r.match.pathMode === 'exact' ? 'bg-blue-900/40 text-blue-400' : r.match.pathMode === 'regex' ? 'bg-orange-900/40 text-orange-400' : 'bg-gray-800 text-gray-400'"
+                  x-text="r.match.pathMode || 'prefix'"></span>
+                <span x-show="r.plugins && r.plugins.length" class="text-xs bg-purple-900/40 text-purple-400 px-1.5 py-0.5 rounded" x-text="(r.plugins||[]).length + ' plugin' + (r.plugins?.length===1?'':'s')"></span>
+              </div>
+              <div class="flex items-center gap-4 mt-1">
+                <code class="text-xs text-gray-400 font-mono" x-text="r.match.path"></code>
+                <span class="text-xs text-gray-600">→</span>
+                <code class="text-xs text-indigo-400 font-mono" x-text="upstreamName(r.upstreamId)"></code>
+              </div>
+              <div x-show="r.match.hosts && r.match.hosts.length" class="text-xs text-gray-500 mt-0.5" x-text="'hosts: ' + (r.match.hosts || []).join(', ')"></div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <button @click="toggleRoute(r)" :title="r.active ? 'Deactivate' : 'Activate'"
+                class="relative w-10 h-5 rounded-full transition-colors"
+                :class="r.active ? 'bg-indigo-600' : 'bg-gray-700'">
+                <span class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
+                  :class="r.active ? 'left-5' : 'left-0.5'"></span>
+              </button>
+              <button @click="openRouteModal(r)" class="text-xs text-gray-500 hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-800">Edit</button>
+              <button @click="deleteRoute(r)" class="text-xs text-red-600 hover:text-red-400 px-2 py-1 rounded hover:bg-red-900/20">Delete</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- ── Upstreams ── -->
+    <div x-show="page === 'upstreams'" class="p-6">
+      <div class="flex justify-between items-center mb-4">
+        <p class="text-sm text-gray-400">Backend service targets</p>
+        <button @click="openUpstreamModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-3 py-1.5 rounded-lg transition">+ New Upstream</button>
+      </div>
+      <div class="space-y-2">
+        <template x-if="upstreams.length === 0">
+          <p class="text-center text-gray-600 py-12 text-sm">No upstreams yet. Add a backend service to get started.</p>
+        </template>
+        <template x-for="u in upstreams" :key="u.id">
+          <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 hover:border-gray-700 transition">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-sm" x-text="u.name"></span>
+                <span x-show="u.protocol" class="text-xs bg-teal-900/40 text-teal-400 px-1.5 py-0.5 rounded uppercase" x-text="u.protocol"></span>
+                <span :class="healthColor(u.id)" class="text-xs px-1.5 py-0.5 rounded" x-text="healthStatus[u.id] || 'unknown'"></span>
+              </div>
+              <code class="text-xs text-gray-400 font-mono block mt-1" x-text="u.url"></code>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <button @click="checkHealth(u)" class="text-xs text-gray-500 hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-800">Health</button>
+              <button @click="openUpstreamModal(u)" class="text-xs text-gray-500 hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-800">Edit</button>
+              <button @click="deleteUpstream(u)" class="text-xs text-red-600 hover:text-red-400 px-2 py-1 rounded hover:bg-red-900/20">Delete</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- ── Policies ── -->
+    <div x-show="page === 'policies'" class="p-6">
+      <div class="flex justify-between items-center mb-4">
+        <p class="text-sm text-gray-400">IP allow / deny lists applied globally</p>
+        <button @click="openPolicyModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-3 py-1.5 rounded-lg transition">+ New Policy</button>
+      </div>
+      <div class="space-y-2">
+        <template x-if="policies.length === 0">
+          <p class="text-center text-gray-600 py-12 text-sm">No IP policies. All traffic is permitted.</p>
+        </template>
+        <template x-for="p in policies" :key="p.id">
+          <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 hover:border-gray-700 transition">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-sm" x-text="p.name"></span>
+                <span class="text-xs px-1.5 py-0.5 rounded font-medium"
+                  :class="p.mode === 'allow' ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'"
+                  x-text="p.mode.toUpperCase()"></span>
+              </div>
+              <p class="text-xs text-gray-500 font-mono mt-1" x-text="(p.cidrs || []).join('  ·  ')"></p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <button @click="togglePolicy(p)" :title="p.active ? 'Deactivate' : 'Activate'"
+                class="relative w-10 h-5 rounded-full transition-colors"
+                :class="p.active ? 'bg-indigo-600' : 'bg-gray-700'">
+                <span class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
+                  :class="p.active ? 'left-5' : 'left-0.5'"></span>
+              </button>
+              <button @click="openPolicyModal(p)" class="text-xs text-gray-500 hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-800">Edit</button>
+              <button @click="deletePolicy(p)" class="text-xs text-red-600 hover:text-red-400 px-2 py-1 rounded hover:bg-red-900/20">Delete</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- ── Metrics ── -->
+    <div x-show="page === 'metrics'" class="p-6">
+      <div class="grid grid-cols-3 gap-4 mb-6">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <p class="text-xs text-gray-500 uppercase tracking-wider">Total Requests</p>
+          <p class="text-2xl font-bold mt-1" x-text="metrics.total_requests || 0"></p>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <p class="text-xs text-gray-500 uppercase tracking-wider">Total Errors</p>
+          <p class="text-2xl font-bold text-red-400 mt-1" x-text="metrics.total_errors || 0"></p>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <p class="text-xs text-gray-500 uppercase tracking-wider">Active Routes</p>
+          <p class="text-2xl font-bold text-indigo-400 mt-1" x-text="(metrics.routes || []).filter(r=>r.requests>0).length"></p>
+        </div>
+      </div>
+      <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+          <span class="text-sm font-medium">Per-Route Traffic</span>
+          <span class="flex items-center gap-1.5 text-xs text-green-400">
+            <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Live
+          </span>
+        </div>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-800 text-gray-500 text-xs uppercase">
+              <th class="text-left px-4 py-2">Route</th>
+              <th class="text-right px-4 py-2">Requests</th>
+              <th class="text-right px-4 py-2">Errors</th>
+              <th class="text-right px-4 py-2">Error Rate</th>
+              <th class="text-right px-4 py-2">Avg Latency</th>
+              <th class="text-right px-4 py-2">p99 Latency</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-if="!metrics.routes || metrics.routes.length === 0">
+              <tr><td colspan="6" class="text-center text-gray-600 py-8 text-xs">No traffic yet</td></tr>
+            </template>
+            <template x-for="r in (metrics.routes || [])" :key="r.route_id">
+              <tr class="border-b border-gray-800/50 hover:bg-gray-800/30 transition">
+                <td class="px-4 py-2.5 font-medium" x-text="r.route_name"></td>
+                <td class="px-4 py-2.5 text-right" x-text="r.requests.toLocaleString()"></td>
+                <td class="px-4 py-2.5 text-right" :class="r.errors > 0 ? 'text-red-400' : 'text-gray-400'" x-text="r.errors"></td>
+                <td class="px-4 py-2.5 text-right text-xs">
+                  <span class="px-1.5 py-0.5 rounded-full" :class="r.error_rate > 5 ? 'bg-red-900/40 text-red-400' : r.error_rate > 0 ? 'bg-yellow-900/40 text-yellow-400' : 'text-gray-500'" x-text="r.error_rate.toFixed(1) + '%'"></span>
+                </td>
+                <td class="px-4 py-2.5 text-right text-gray-400 font-mono text-xs" x-text="r.avg_latency_ms.toFixed(1) + ' ms'"></td>
+                <td class="px-4 py-2.5 text-right text-gray-400 font-mono text-xs" x-text="r.p99_latency_ms + ' ms'"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Route Modal ── -->
+<div x-show="modal.route" x-transition.opacity class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" @click.self="modal.route = false">
+  <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg p-6 space-y-4" @click.stop>
+    <h2 class="font-semibold" x-text="form.route.id ? 'Edit Route' : 'New Route'"></h2>
+    <div class="space-y-3">
+      <input x-model="form.route.name" placeholder="Route name" class="input" />
+      <div class="grid grid-cols-2 gap-3">
+        <input x-model="form.route.match.path" placeholder="Path e.g. /api/v1" class="input" />
+        <select x-model="form.route.match.pathMode" class="input">
+          <option value="prefix">Prefix</option>
+          <option value="exact">Exact</option>
+          <option value="regex">Regex</option>
+        </select>
+      </div>
+      <input x-model="form.route.match.hostsRaw" placeholder="Hosts (comma-separated, leave empty for all)" class="input" />
+      <input x-model="form.route.match.methodsRaw" placeholder="Methods e.g. GET,POST (empty = all)" class="input" />
+      <select x-model="form.route.upstreamId" class="input">
+        <option value="">— Select Upstream —</option>
+        <template x-for="u in upstreams" :key="u.id"><option :value="u.id" x-text="u.name"></option></template>
+      </select>
+      <div class="flex gap-4 text-sm">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" x-model="form.route.active" class="rounded" /> Active
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" x-model="form.route.stripPath" class="rounded" /> Strip Path
+        </label>
+      </div>
+    </div>
+    <div class="flex gap-2 justify-end pt-2">
+      <button @click="modal.route = false" class="btn-ghost">Cancel</button>
+      <button @click="saveRoute()" class="btn-primary" x-text="form.route.id ? 'Update' : 'Create'"></button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Upstream Modal ── -->
+<div x-show="modal.upstream" x-transition.opacity class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" @click.self="modal.upstream = false">
+  <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6 space-y-4" @click.stop>
+    <h2 class="font-semibold" x-text="form.upstream.id ? 'Edit Upstream' : 'New Upstream'"></h2>
+    <div class="space-y-3">
+      <input x-model="form.upstream.name" placeholder="Name e.g. backend" class="input" />
+      <input x-model="form.upstream.url" placeholder="URL e.g. http://backend:8080" class="input" />
+      <div class="grid grid-cols-2 gap-3">
+        <select x-model="form.upstream.protocol" class="input">
+          <option value="">HTTP (default)</option>
+          <option value="grpc">gRPC (h2c)</option>
+        </select>
+        <input x-model="form.upstream.healthPath" placeholder="Health path /health" class="input" />
+      </div>
+    </div>
+    <div class="flex gap-2 justify-end pt-2">
+      <button @click="modal.upstream = false" class="btn-ghost">Cancel</button>
+      <button @click="saveUpstream()" class="btn-primary" x-text="form.upstream.id ? 'Update' : 'Create'"></button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Policy Modal ── -->
+<div x-show="modal.policy" x-transition.opacity class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" @click.self="modal.policy = false">
+  <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6 space-y-4" @click.stop>
+    <h2 class="font-semibold" x-text="form.policy.id ? 'Edit Policy' : 'New Policy'"></h2>
+    <div class="space-y-3">
+      <input x-model="form.policy.name" placeholder="Name e.g. internal-only" class="input" />
+      <select x-model="form.policy.mode" class="input">
+        <option value="allow">Allow — only permit listed CIDRs</option>
+        <option value="deny">Deny — block listed CIDRs</option>
+      </select>
+      <textarea x-model="form.policy.cidrsRaw" placeholder="CIDRs, one per line e.g.&#10;10.0.0.0/8&#10;192.168.1.0/24" rows="4" class="input font-mono text-xs"></textarea>
+      <label class="flex items-center gap-2 text-sm cursor-pointer">
+        <input type="checkbox" x-model="form.policy.active" class="rounded" /> Active
+      </label>
+    </div>
+    <div class="flex gap-2 justify-end pt-2">
+      <button @click="modal.policy = false" class="btn-ghost">Cancel</button>
+      <button @click="savePolicy()" class="btn-primary" x-text="form.policy.id ? 'Update' : 'Create'"></button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .input { @apply w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition; }
+  .btn-primary { @apply bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition; }
+  .btn-ghost { @apply text-gray-400 hover:text-gray-200 text-sm px-4 py-2 rounded-lg hover:bg-gray-800 transition; }
+</style>
+
+<script>
+function app() {
+  return {
+    page: 'routes',
+    tabs: [
+      { id: 'routes', label: 'Routes', icon: '⇄' },
+      { id: 'upstreams', label: 'Upstreams', icon: '◎' },
+      { id: 'policies', label: 'IP Policies', icon: '🛡' },
+      { id: 'metrics', label: 'Metrics', icon: '📊' },
+    ],
+    info: {},
+    routes: [], upstreams: [], policies: [],
+    metrics: { routes: [], total_requests: 0, total_errors: 0 },
+    healthStatus: {},
+    toast: { msg: '', ok: true },
+    modal: { route: false, upstream: false, policy: false },
+    form: { route: {}, upstream: {}, policy: {} },
+
+    async init() {
+      await this.loadInfo();
+      await this.loadAll();
+      this.startMetricsStream();
+    },
+
+    async loadInfo() {
+      try { this.info = await this.get('/admin/v1/info'); } catch {}
+    },
+
+    async loadAll() {
+      const [r, u, p] = await Promise.all([
+        this.get('/admin/v1/routes').catch(() => ({ data: [] })),
+        this.get('/admin/v1/upstreams').catch(() => ({ data: [] })),
+        this.get('/admin/v1/policies').catch(() => ({ data: [] })),
+      ]);
+      this.routes = r.data || [];
+      this.upstreams = u.data || [];
+      this.policies = p.data || [];
+    },
+
+    startMetricsStream() {
+      const es = new EventSource('/admin/v1/metrics/stream');
+      es.onmessage = e => { try { this.metrics = JSON.parse(e.data); } catch {} };
+      es.onerror = () => setTimeout(() => this.startMetricsStream(), 5000);
+    },
+
+    upstreamName(id) {
+      return this.upstreams.find(u => u.id === id)?.name || id;
+    },
+
+    healthColor(id) {
+      const s = this.healthStatus[id];
+      if (s === 'healthy') return 'bg-green-900/40 text-green-400';
+      if (s === 'unhealthy') return 'bg-red-900/40 text-red-400';
+      return 'bg-gray-800 text-gray-500';
+    },
+
+    async checkHealth(u) {
+      try {
+        const r = await this.get(`/admin/v1/upstreams/${u.id}/health`);
+        this.healthStatus[u.id] = r.status;
+        this.notify(r.status === 'healthy' ? `${u.name}: healthy (${r.latency_ms}ms)` : `${u.name}: unhealthy`, r.status === 'healthy');
+      } catch (e) { this.notify('Health check failed', false); }
+    },
+
+    // Routes
+
+    openRouteModal(r) {
+      this.form.route = r ? {
+        ...r,
+        match: { ...r.match, hostsRaw: (r.match.hosts||[]).join(', '), methodsRaw: (r.match.methods||[]).join(',') }
+      } : { name: '', active: true, stripPath: false, upstreamId: '', match: { path: '', pathMode: 'prefix', hostsRaw: '', methodsRaw: '' }, plugins: [] };
+      this.modal.route = true;
+    },
+
+    async saveRoute() {
+      const f = this.form.route;
+      const body = {
+        name: f.name, active: f.active, stripPath: f.stripPath, upstreamId: f.upstreamId,
+        match: {
+          path: f.match.path, pathMode: f.match.pathMode,
+          hosts: f.match.hostsRaw ? f.match.hostsRaw.split(',').map(s=>s.trim()).filter(Boolean) : [],
+          methods: f.match.methodsRaw ? f.match.methodsRaw.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean) : [],
+        },
+        plugins: f.plugins || [],
+      };
+      try {
+        if (f.id) { await this.put(`/admin/v1/routes/${f.id}`, body); this.notify('Route updated'); }
+        else { await this.post('/admin/v1/routes', body); this.notify('Route created'); }
+        this.modal.route = false;
+        await this.loadAll();
+      } catch(e) { this.notify(e.message, false); }
+    },
+
+    async toggleRoute(r) {
+      try {
+        await this.patch(`/admin/v1/routes/${r.id}/toggle`, { active: !r.active });
+        r.active = !r.active;
+      } catch(e) { this.notify(e.message, false); }
+    },
+
+    async deleteRoute(r) {
+      if (!confirm(`Delete route "${r.name}"?`)) return;
+      try { await this.del(`/admin/v1/routes/${r.id}`); this.notify('Route deleted'); await this.loadAll(); }
+      catch(e) { this.notify(e.message, false); }
+    },
+
+    // Upstreams
+
+    openUpstreamModal(u) {
+      this.form.upstream = u ? { ...u } : { name: '', url: '', protocol: '', healthPath: '/health' };
+      this.modal.upstream = true;
+    },
+
+    async saveUpstream() {
+      const f = this.form.upstream;
+      try {
+        if (f.id) { await this.put(`/admin/v1/upstreams/${f.id}`, f); this.notify('Upstream updated'); }
+        else { await this.post('/admin/v1/upstreams', f); this.notify('Upstream created'); }
+        this.modal.upstream = false;
+        await this.loadAll();
+      } catch(e) { this.notify(e.message, false); }
+    },
+
+    async deleteUpstream(u) {
+      if (!confirm(`Delete upstream "${u.name}"?`)) return;
+      try { await this.del(`/admin/v1/upstreams/${u.id}`); this.notify('Upstream deleted'); await this.loadAll(); }
+      catch(e) { this.notify(e.message, false); }
+    },
+
+    // Policies
+
+    openPolicyModal(p) {
+      this.form.policy = p ? { ...p, cidrsRaw: (p.cidrs||[]).join('\n') } : { name: '', mode: 'deny', active: true, cidrsRaw: '' };
+      this.modal.policy = true;
+    },
+
+    async savePolicy() {
+      const f = this.form.policy;
+      const body = { name: f.name, mode: f.mode, active: f.active, cidrs: f.cidrsRaw.split('\n').map(s=>s.trim()).filter(Boolean) };
+      try {
+        if (f.id) { await this.put(`/admin/v1/policies/${f.id}`, body); this.notify('Policy updated'); }
+        else { await this.post('/admin/v1/policies', body); this.notify('Policy created'); }
+        this.modal.policy = false;
+        await this.loadAll();
+      } catch(e) { this.notify(e.message, false); }
+    },
+
+    async togglePolicy(p) {
+      try {
+        await this.patch(`/admin/v1/policies/${p.id}/toggle`, { active: !p.active });
+        p.active = !p.active;
+      } catch(e) { this.notify(e.message, false); }
+    },
+
+    async deletePolicy(p) {
+      if (!confirm(`Delete policy "${p.name}"?`)) return;
+      try { await this.del(`/admin/v1/policies/${p.id}`); this.notify('Policy deleted'); await this.loadAll(); }
+      catch(e) { this.notify(e.message, false); }
+    },
+
+    // HTTP helpers
+
+    async get(path) {
+      const r = await fetch(path);
+      if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.error?.message || r.statusText); }
+      return r.json();
+    },
+    async post(path, body) {
+      const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.error?.message || r.statusText); }
+      return r.json();
+    },
+    async put(path, body) {
+      const r = await fetch(path, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.error?.message || r.statusText); }
+      return r.json();
+    },
+    async patch(path, body) {
+      const r = await fetch(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.error?.message || r.statusText); }
+      return r.json();
+    },
+    async del(path) {
+      const r = await fetch(path, { method: 'DELETE' });
+      if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.error?.message || r.statusText); }
+    },
+
+    notify(msg, ok = true) {
+      this.toast = { msg, ok };
+      setTimeout(() => { if (this.toast.msg === msg) this.toast.msg = ''; }, 3500);
+    },
+  };
+}
+</script>
+
+</body>
+</html>

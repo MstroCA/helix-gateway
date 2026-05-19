@@ -1,0 +1,84 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: helixippolicies.helix.io
+spec:
+  group: helix.io
+  names:
+    kind: HelixIPPolicy
+    listKind: HelixIPPolicyList
+    plural: helixippolicies
+    singular: helixippolicy
+    shortNames:
+      - hippolicy
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Mode
+          type: string
+          jsonPath: .spec.mode
+        - name: CIDRs
+          type: integer
+          jsonPath: .spec.cidrs
+        - name: Active
+          type: boolean
+          jsonPath: .spec.active
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - mode
+                - cidrs
+              properties:
+                mode:
+                  type: string
+                  enum: [allow, deny]
+                cidrs:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                active:
+                  type: boolean
+                  default: true
+            status:
+              type: object
+              properties:
+                policyId:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - type
+                      - status
+                      - reason
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum: ["True", "False", "Unknown"]
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      observedGeneration:
+                        type: integer
+                      lastTransitionTime:
+                        type: string
+                        format: date-time

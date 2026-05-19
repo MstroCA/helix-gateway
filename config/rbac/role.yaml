@@ -1,0 +1,39 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: helix-operator
+rules:
+  - apiGroups: [helix.io]
+    resources: [gatewayroutes, gatewayupstreams, helixippolicies]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [helix.io]
+    resources: [gatewayroutes/status, gatewayupstreams/status, helixippolicies/status]
+    verbs: [get, update, patch]
+  - apiGroups: [helix.io]
+    resources: [gatewayroutes/finalizers, gatewayupstreams/finalizers, helixippolicies/finalizers]
+    verbs: [update]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: helix-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: helix-operator
+subjects:
+  - kind: ServiceAccount
+    name: helix-operator
+    namespace: helix-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: helix-operator
+  namespace: helix-system
